@@ -17,6 +17,34 @@ export default function PostForm({ post }) {
 
     const navigate = useNavigate();
     const userData = useSelector((state) => state.auth.userData);
+    const [aiTopic, setAiTopic] = React.useState("");
+    const [isGenerating, setIsGenerating] = React.useState(false);
+    const [aiError, setAiError] = React.useState("");
+
+    const generateDraft = async () => {
+        setIsGenerating(true);
+        setAiError("");
+
+        try {
+            const draft = await appwriteService.generateDraft(aiTopic.trim());
+            const safeContent = draft.content
+                .split(/\n\s*\n/)
+                .map((paragraph) => `<p>${paragraph
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/\n/g, "<br>")}</p>`)
+                .join("");
+
+            setValue("title", draft.title, { shouldDirty: true, shouldValidate: true });
+            setValue("slug", slugTransform(draft.title), { shouldDirty: true, shouldValidate: true });
+            setValue("content", safeContent, { shouldDirty: true, shouldValidate: true });
+        } catch (error) {
+            setAiError(error.message || "Unable to generate a draft. Please try again.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     const submit = async (data) => {
         if (post) {
@@ -73,6 +101,29 @@ export default function PostForm({ post }) {
     return (
         <form onSubmit={handleSubmit(submit)} className="flex flex-wrap">
             <div className="w-2/3 px-2">
+                <section className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-left">
+                    <label className="mb-2 block font-medium text-gray-900" htmlFor="ai-topic">
+                        AI draft starter
+                    </label>
+                    <textarea
+                        id="ai-topic"
+                        value={aiTopic}
+                        onChange={(event) => setAiTopic(event.target.value)}
+                        maxLength={500}
+                        rows={3}
+                        placeholder="What should your blog post be about?"
+                        className="mb-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none focus:border-blue-500"
+                    />
+                    <Button
+                        type="button"
+                        onClick={generateDraft}
+                        disabled={!aiTopic.trim() || isGenerating}
+                        className="disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {isGenerating ? "Generating..." : "Generate title and draft"}
+                    </Button>
+                    {aiError && <p role="alert" className="mt-3 text-sm text-red-600">{aiError}</p>}
+                </section>
                 <Input
                     label="Title :"
                     placeholder="Title"
