@@ -1,10 +1,11 @@
 import conf from "../conf/conf.js"
-import { Client, ID, Databases, Storage, Query } from "appwrite"
+import { Client, ID, Databases, Storage, Query, Functions } from "appwrite"
 
 export class Service {
     client = new Client()
     databases
     bucket
+    functions
 
     constructor() {
         this.client
@@ -13,6 +14,7 @@ export class Service {
 
         this.databases = new Databases(this.client)
         this.bucket = new Storage(this.client)
+        this.functions = new Functions(this.client)
     }
 
     // CREATE POST
@@ -137,6 +139,30 @@ export class Service {
             bucketId: conf.appwriteBucketId,
             fileId: fileId
         })
+    }
+
+    // GENERATE AI DRAFT
+    async generateDraft(topic) {
+        if (!conf.appwriteAiFunctionId) {
+            throw new Error("Configure VITE_APPWRITE_AI_FUNCTION_ID to use the AI writer.")
+        }
+
+        const execution = await this.functions.createExecution({
+            functionId: conf.appwriteAiFunctionId,
+            body: JSON.stringify({ topic }),
+            async: false,
+        })
+        const result = JSON.parse(execution.responseBody || "{}")
+
+        if (execution.responseStatusCode < 200 || execution.responseStatusCode >= 300) {
+            throw new Error(result.error || "The AI writer could not generate a draft.")
+        }
+
+        if (typeof result.title !== "string" || typeof result.content !== "string") {
+            throw new Error("The AI writer returned an invalid draft.")
+        }
+
+        return result
     }
 }
 
